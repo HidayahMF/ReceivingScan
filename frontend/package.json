@@ -1,0 +1,9 @@
+{
+  "name": "bmc-receiving-ai-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": { "dev": "vite", "build": "tsc -b && vite build", "test": "vitest run", "lint": "eslint ." },
+  "dependencies": { "@vitejs/plugin-react": "latest", "react": "latest", "react-dom": "latest" },
+  "devDependencies": { "@types/react": "latest", "@types/react-dom": "latest", "autoprefixer": "latest", "eslint": "latest", "eslint-plugin-react-hooks": "latest", "eslint-plugin-react-refresh": "latest", "postcss": "latest", "tailwindcss": "^3.4.17", "typescript": "latest", "vite": "latest", "vitest": "latest" }
+}

@@ -1,0 +1,1 @@
+# Ollama is an external local service; no Python cloud SDK is used.

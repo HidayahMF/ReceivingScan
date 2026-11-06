@@ -1,0 +1,12 @@
+FROM python:3.12-slim-bookworm
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng libtesseract5 && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY requirements-ocr-tesseract.txt ./
+RUN pip install --no-cache-dir -r requirements-ocr-tesseract.txt
+COPY app ./app
+COPY scripts ./scripts
+RUN mkdir -p /home/app /tmp/receiving-ai && chown -R 10001:10001 /home/app /tmp/receiving-ai /app
+USER 10001
+ENV HOME=/home/app TMPDIR=/tmp/receiving-ai
+ENTRYPOINT ["python", "scripts/ocr_tesseract_smoke.py"]

@@ -1,0 +1,154 @@
+services:
+  frontend:
+    build: ../frontend
+    restart: unless-stopped
+    ports: ["${FRONTEND_PORT:-8080}:8080"]
+    depends_on: [backend]
+  backend:
+    build: ../backend
+    restart: unless-stopped
+    env_file: [../.env]
+    environment: { STORAGE_PATH: /var/lib/receiving-ai }
+    volumes: [receiving_files:/var/lib/receiving-ai]
+    expose: ["8000"]
+    depends_on: [redis]
+    healthcheck: { test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"], interval: 30s, timeout: 5s, retries: 3 }
+  worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.ocr
+    restart: unless-stopped
+    env_file: [../.env]
+    environment: { STORAGE_PATH: /var/lib/receiving-ai }
+    volumes: [receiving_files:/var/lib/receiving-ai]
+    command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=INFO"]
+    depends_on: [redis]
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redis_data:/data]
+    expose: ["6379"]
+  ollama:
+    image: ollama/ollama:0.5.4
+    profiles: ["local-vlm"]
+    restart: unless-stopped
+    volumes: [ollama_models:/root/.ollama]
+    expose: ["11434"]
+  ocr-smoke:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.ocr
+    profiles: ["ocr-smoke"]
+    environment:
+      HOME: /home/app
+      TMPDIR: /tmp/receiving-ai
+      STORAGE_PATH: /var/lib/receiving-ai
+      PADDLE_HOME: /models/paddle
+      PADDLE_PDX_CACHE_HOME: /models/paddlex
+      PADDLEX_HOME: /models/paddlex
+    volumes:
+      - receiving_files:/var/lib/receiving-ai
+      - paddle_models:/models
+      - ../samples:/samples:ro
+    command: ["python", "scripts/ocr_smoke.py", "/samples/PT Bakrie Autoparts.jpg", "--workdir", "/tmp/ocr-smoke"]
+  ocr-compat-mobile:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.ocr-compat-mobile
+    profiles: ["ocr-compat"]
+    cpus: "2.0"
+    mem_limit: 2g
+    environment:
+      HOME: /home/app
+      TMPDIR: /tmp/receiving-ai
+      PADDLE_HOME: /models/paddle
+      PADDLE_PDX_CACHE_HOME: /models/paddlex
+      PADDLEX_HOME: /models/paddlex
+    volumes:
+      - paddle_models_compat:/models
+      - ../samples:/samples:ro
+    command: ["/samples/PT Bakrie Autoparts.jpg", "--workdir", "/tmp/ocr-compat"]
+  ocr-compat-legacy:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.ocr-compat-legacy
+    profiles: ["ocr-compat-legacy"]
+    cpus: "2.0"
+    mem_limit: 2g
+    volumes:
+      - paddle_models_legacy:/models
+      - ../samples:/samples:ro
+    command: ["/samples/PT Bakrie Autoparts.jpg", "--workdir", "/tmp/ocr-compat-legacy"]
+  ocr-tesseract:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.ocr-tesseract
+    profiles: ["ocr-tesseract"]
+    cpus: "2.0"
+    mem_limit: 1g
+    volumes:
+      - ../samples:/samples:ro
+    command: ["/samples/PT Bakrie Autoparts.jpg"]
+  ocr-tesseract-quality:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.ocr-tesseract
+    profiles: ["ocr-tesseract-quality"]
+    cpus: "2.0"
+    mem_limit: 1g
+    volumes:
+      - ../samples:/samples:ro
+      - tesseract_quality_results:/results
+    entrypoint: ["python"]
+    command: ["scripts/ocr_tesseract_quality.py", "/samples/PT Bakrie Autoparts.jpg", "--output", "/results/PT-Bakrie-Autoparts.tesseract-quality.json"]
+  ocr-tesseract-targeted:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.ocr-tesseract
+    profiles: ["ocr-targeted"]
+    cpus: "2.0"
+    mem_limit: 1g
+    volumes:
+      - ../samples:/samples:ro
+      - tesseract_quality_results:/results
+    entrypoint: ["python", "scripts/ocr_tesseract_targeted.py"]
+    command: ["/samples/PT Bakrie Autoparts.jpg", "--output", "/results/PT-Bakrie-Autoparts.targeted.json"]
+  universal-ocr:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.universal-ocr
+    profiles: ["universal-ocr"]
+    cpus: "2.0"
+    mem_limit: 1g
+    volumes:
+      - receiving_files:/var/lib/receiving-ai
+  layout-reconstruction:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.layout
+    profiles: ["layout"]
+    volumes:
+      - ../docs:/input:ro
+      - layout_results:/output
+    command: ["/input/PT-Bakrie-Autoparts.tesseract-quality.json", "--output", "/output/PT-Bakrie-Autoparts.structured-extraction.json"]
+  layout-debug:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.layout
+    profiles: ["layout"]
+    volumes:
+      - ../docs:/input:ro
+      - ../samples:/samples:ro
+      - layout_results:/output
+    entrypoint: ["python", "scripts/layout_debug_image.py"]
+    command: ["/input/PT-Bakrie-Autoparts.tesseract-quality.json", "/samples/PT Bakrie Autoparts.jpg", "/output/PT-Bakrie-Autoparts.layout-debug.png"]
+volumes:
+  receiving_files:
+  redis_data:
+  ollama_models:
+  paddle_models:
+  paddle_models_compat:
+  paddle_models_legacy:
+  tesseract_quality_results:
+  layout_results:

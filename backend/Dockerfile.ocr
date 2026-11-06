@@ -1,0 +1,16 @@
+FROM python:3.12-slim-bookworm
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
+RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ unixodbc-dev libgomp1 libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY requirements.txt requirements-base.txt requirements-ocr.txt requirements-vision.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY app ./app
+COPY scripts ./scripts
+RUN mkdir -p /models /var/lib/receiving-ai /home/app /tmp/receiving-ai && chown -R 10001:10001 /models /var/lib/receiving-ai /app /home/app /tmp/receiving-ai
+USER 10001
+ENV HOME=/home/app \
+    TMPDIR=/tmp/receiving-ai \
+    PADDLE_HOME=/models/paddle \
+    PADDLE_PDX_CACHE_HOME=/models/paddlex \
+    PADDLEX_HOME=/models/paddlex
+CMD ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=INFO"]
